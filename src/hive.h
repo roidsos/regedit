@@ -4,6 +4,6 @@
 // Based on :
 // https://github.com/roidsos/RoidsOS/blob/main/docs/design/KERNEL.md#4-registery
 
-typedef
+typedef unsigned char U8;
 
 #endif // __HIVE_H__
