@@ -1,4 +1,5 @@
 const std = @import("std");
+const hive = @import("hive.zig");
 
 pub fn main() !void {
     // stdout stuffs
@@ -8,5 +9,9 @@ pub fn main() !void {
     defer bw.flush() catch unreachable; // don't forget to flush!
 
     try stdout.print("Hello World!\n", .{});
+
+    const ass= try hive.Hive.create("test.reg","SYSTEM");
+
+    try ass.write("test.reg");
 
 }
