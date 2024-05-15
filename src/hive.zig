@@ -72,6 +72,7 @@ pub const Key = struct {
             .entries = &[_]Entry{},
             .subkeys = &[_]Key{}
         };
+        if(name.len > 64) unreachable;
         @memcpy(self.subkeys[self.num_subkeys].name[0..name.len], name);
     }
 
