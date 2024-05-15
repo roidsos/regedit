@@ -22,14 +22,14 @@ pub const Entry = struct {
     length: u8,
     data: std.ArrayList(u8),
 
-    pub fn read(in_stream: anytype) Entry {
+    pub fn read(in_stream: anytype) !Entry {
         var newEntry = Entry{
             .name = std.mem.zeroes([64]u8),
             .type = 0,
             .length = 0,
             .data = std.ArrayList(u8).init(std.heap.page_allocator)
         };
-        try in_stream.readNoEof(newEntry.name);
+        try in_stream.readNoEof(&newEntry.name);
         newEntry.type = try in_stream.readByte();
         newEntry.length = try in_stream.readByte();
         var i: u8 = 0;
@@ -97,21 +97,21 @@ pub const Key = struct {
             .name = std.mem.zeroes([64]u8),
             .num_entries = 0,
             .num_subkeys = 0,
-            .entries = &[_]Entry{},
-            .subkeys = &[_]Key{}
+            .entries = std.ArrayList(Entry).init(std.heap.page_allocator),
+            .subkeys = std.ArrayList(Key).init(std.heap.page_allocator),
         };
         const magic = try in_stream.readInt(u32, .big);
         if(magic != 0x69420666) unreachable;
         newKey.num_entries = try in_stream.readInt(u32, .big);
         newKey.num_subkeys = try in_stream.readInt(u32, .big);
-        try in_stream.readNoEof(newKey.name);
+        try in_stream.readNoEof(&newKey.name);
         var i: u32 = 0;
         while(i < newKey.num_entries) : (i += 1) {
-            newKey.entries.append(Entry.read(in_stream));
+            try newKey.entries.append(try Entry.read(in_stream));
         }
         i = 0;
         while(i < newKey.num_subkeys) : (i += 1) {
-            newKey.subkeys.append(Key.read(in_stream));
+            try newKey.subkeys.append(try Key.read(in_stream));
         }
         return newKey;
     }
@@ -153,10 +153,10 @@ pub const Hive = struct {
         return &self.keys.items[self.num_keys - 1];
     }
 
-    pub fn readKeys(self: Hive,in_stream: anytype) !void {
+    pub fn readKeys(self: *Hive,in_stream: anytype) !void {
         var i: u32 = 0;
         while(i < self.num_keys) : (i += 1) {
-            self.keys.append(try Key.read(in_stream));
+            try self.keys.append(try Key.read(in_stream));
         }
     }
 
@@ -171,7 +171,8 @@ pub const Hive = struct {
             .magic = 0,
             .num_keys = 0,
             .checksum = 0,
-            .name = std.mem.zeroes([64]u8)
+            .name = std.mem.zeroes([64]u8),
+            .keys = std.ArrayList(Key).init(std.heap.page_allocator),
         };
         newHive.magic = try in_stream.readInt(u32, .big);
         newHive.num_keys = try in_stream.readInt(u32, .big);
