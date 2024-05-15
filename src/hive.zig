@@ -16,6 +16,10 @@ pub const EntryType = enum(u8) {
     DOUBLE = 0xC,
 };
 
+pub const HiveErrors = error{
+    NotFound
+};
+
 pub const Entry = struct {
     name: [64]u8,
     type: u8,
@@ -92,6 +96,20 @@ pub const Key = struct {
         return &self.subkeys.items[self.num_keys - 1];
     }
 
+    pub fn iterateSubkeys(self: Key,name: []const u8) HiveErrors!*Key {
+        for (self.subkeys.items) |*key| {
+            if(std.mem.eql(u8,name,&key.name)) return key;
+        }
+        return HiveErrors.NotFound;
+    }
+
+    pub fn iterateEntries(self: Key,name: []const u8) HiveErrors!*Entry {
+        for (self.entries.items) |*entry| {
+            if(std.mem.eql(u8,name,&entry.name)) return entry;
+        }
+        return HiveErrors.NotFound;
+    }
+
     pub fn read(in_stream: anytype) !Key {
         var newKey = Key{
             .name = std.mem.zeroes([64]u8),
@@ -137,6 +155,13 @@ pub const Hive = struct {
     checksum: u8,
     name: [64]u8,
     keys: std.ArrayList(Key),
+
+    pub fn iterateKeys(self: Hive,name: []const u8) HiveErrors!*Key {
+        for (self.keys.items) |*key| {
+            if(std.mem.eql(u8,name,&key.name)) return key;
+        }
+        return HiveErrors.NotFound;
+    }
 
     pub fn addKey(self: *Hive,name: []const u8) !*Key {
         self.num_keys += 1;
