@@ -59,6 +59,7 @@ pub const Key = struct {
             .length = 0,
             .data = &[_]u8{}
         };
+        if(name.len > 64) unreachable;
         @memcpy(self.entries[self.num_entries].name[0..name.len], name);
     }
 
