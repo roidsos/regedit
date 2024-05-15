@@ -100,8 +100,11 @@ pub const Key = struct {
             .entries = &[_]Entry{},
             .subkeys = &[_]Key{}
         };
+        const magic = try in_stream.readInt(u32, .big);
+        if(magic != 0x69420666) unreachable;
         newKey.num_entries = try in_stream.readInt(u32, .big);
         newKey.num_subkeys = try in_stream.readInt(u32, .big);
+        try in_stream.readNoEof(newKey.name);
         var i: u32 = 0;
         while(i < newKey.num_entries) : (i += 1) {
             newKey.entries.append(Entry.read(in_stream));
@@ -110,7 +113,6 @@ pub const Key = struct {
         while(i < newKey.num_subkeys) : (i += 1) {
             newKey.subkeys.append(Key.read(in_stream));
         }
-        try in_stream.readNoEof(newKey.name);
         return newKey;
     }
 
