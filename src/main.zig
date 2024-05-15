@@ -10,7 +10,13 @@ pub fn main() !void {
 
     try stdout.print("Hello World!\n", .{});
 
-    const ass= try hive.Hive.create("test.reg","SYSTEM");
+    var ass= try hive.Hive.create("test.reg","SYSTEM");
+
+    var key = try ass.addKey("test");
+    
+    var ent = try key.addEntry("test",hive.EntryType.SZ);
+
+    try ent.setData("Suck my cock");
 
     try ass.write("test.reg");
 

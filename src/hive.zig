@@ -11,28 +11,31 @@ pub const EntryType = enum(u8) {
     U64 = 0x7,
     BOOL = 0x8,
     CHAR = 0x9,
-    SZ = 0x8,
-    FLOAT = 0xA,
-    DOUBLE = 0xB,
+    SZ = 0xA,
+    FLOAT = 0xB,
+    DOUBLE = 0xC,
 };
 
 pub const Entry = struct {
     name: [64]u8,
     type: u8,
     length: u8,
-    data: []u8,
+    data: std.ArrayList(u8),
 
     pub fn read(in_stream: anytype) Entry {
         var newEntry = Entry{
             .name = std.mem.zeroes([64]u8),
             .type = 0,
             .length = 0,
-            .data = &[_]u8{}
+            .data = std.ArrayList(u8).init(std.heap.page_allocator)
         };
         try in_stream.readNoEof(newEntry.name);
         newEntry.type = try in_stream.readByte();
         newEntry.length = try in_stream.readByte();
-        newEntry.data = try in_stream.readAllAlloc(std.heap.page_allocator, @intFromEnum(newEntry.length));
+        var i: u8 = 0;
+        while(i < newEntry.length) : (i += 1) {
+            try newEntry.data.append(try in_stream.readByte());
+        }
         return newEntry;
     }
 
@@ -40,40 +43,53 @@ pub const Entry = struct {
         try out_stream.writeAll(&newEntry.name);
         try out_stream.writeByte(newEntry.type);
         try out_stream.writeByte(newEntry.length);
-        try out_stream.writeAll(newEntry.data);
+        var i: u8 = 0;
+        while(i < newEntry.length) : (i += 1) {
+            try out_stream.writeByte(newEntry.data.items[i]);
+        }
         return;
+    }
+    pub fn setData(self: *Entry,data: []const u8) !void {
+        self.length = @intCast(data.len);
+        self.data.clearAndFree();
+        self.data = std.ArrayList(u8).init(std.heap.page_allocator);
+        try self.data.appendSlice(data);
     }
 };
 pub const Key = struct {
     name: [64]u8,
     num_entries: u32,
     num_subkeys: u32,
-    entries: []Entry,
-    subkeys: []Key,
+    entries: std.ArrayList(Entry),
+    subkeys: std.ArrayList(Key),
 
-    pub fn addEntry(self: Key,name: []const u8,Type: EntryType) !void {
+    pub fn addEntry(self: *Key,name: []const u8,Type: EntryType) !*Entry {
         self.num_entries += 1;
-        self.entries[self.num_entries] = Entry{
+        try self.entries.append(Entry{
             .name = std.mem.zeroes([64]u8),
             .type = @intFromEnum(Type),
             .length = 0,
-            .data = &[_]u8{}
-        };
+            .data =std.ArrayList(u8).init(std.heap.page_allocator)
+        });
         if(name.len > 64) unreachable;
-        @memcpy(self.entries[self.num_entries].name[0..name.len], name);
+        @memcpy(self.entries.items[self.num_entries - 1].name[0..name.len], name);
+
+        return &self.entries.items[self.num_entries - 1];
     }
 
-    pub fn addSubkey(self: Key,name: []const u8) !void {
+    pub fn addSubkey(self: *Key,name: []const u8) !*Key {
         self.num_subkeys += 1;
-        self.subkeys[self.num_subkeys] = Key{
+        self.subkeys.append(Key{
             .name = std.mem.zeroes([64]u8),
             .num_entries = 0,
             .num_subkeys = 0,
-            .entries = &[_]Entry{},
-            .subkeys = &[_]Key{}
-        };
+            .entries = std.ArrayList(Entry).init(std.heap.page_allocator),
+            .subkeys = std.ArrayList(Key).init(std.heap.page_allocator),
+        });
         if(name.len > 64) unreachable;
-        @memcpy(self.subkeys[self.num_subkeys].name[0..name.len], name);
+        @memcpy(self.subkeys.items[self.num_subkeys - 1].name[0..name.len], name);
+
+        return &self.subkeys.items[self.num_keys - 1];
     }
 
     pub fn read(in_stream: anytype) !Key {
@@ -88,27 +104,28 @@ pub const Key = struct {
         newKey.num_subkeys = try in_stream.readInt(u32, .big);
         var i: u32 = 0;
         while(i < newKey.num_entries) : (i += 1) {
-            newKey.subkeys[i] = Entry.read(in_stream);
+            newKey.entries.append(Entry.read(in_stream));
         }
         i = 0;
         while(i < newKey.num_subkeys) : (i += 1) {
-            newKey.subkeys[i] = Key.read(in_stream);
+            newKey.subkeys.append(Key.read(in_stream));
         }
         try in_stream.readNoEof(newKey.name);
         return newKey;
     }
 
     pub fn write(out_stream: anytype,newKey: Key) !void {
+        try out_stream.writeInt(u32, 0x69420666, .big);
         try out_stream.writeInt(u32, newKey.num_entries, .big);
         try out_stream.writeInt(u32, newKey.num_subkeys, .big);
         try out_stream.writeAll(&newKey.name);
         var i: u32 = 0;
         while(i < newKey.num_entries) : (i += 1) {
-            try Entry.write(out_stream,newKey.entries[i]);
+            try Entry.write(out_stream,newKey.entries.items[i]);
         }
         i = 0;
         while(i < newKey.num_subkeys) : (i += 1) {
-            try Key.write(out_stream,newKey.subkeys[i]);
+            try Key.write(out_stream,newKey.subkeys.items[i]);
         }
     }
 };
@@ -117,17 +134,27 @@ pub const Hive = struct {
     num_keys: u32,
     checksum: u8,
     name: [64]u8,
-    keys: []Key,
+    keys: std.ArrayList(Key),
 
-    pub fn addKey(self: Hive,key: Key) !void {
+    pub fn addKey(self: *Hive,name: []const u8) !*Key {
         self.num_keys += 1;
-        self.keys[self.num_keys] = key;
+        try self.keys.append(Key{
+            .name = std.mem.zeroes([64]u8),
+            .num_entries = 0,
+            .num_subkeys = 0,
+            .entries = std.ArrayList(Entry).init(std.heap.page_allocator),
+            .subkeys = std.ArrayList(Key).init(std.heap.page_allocator),
+        });
+        if(name.len > 64) unreachable;
+        @memcpy(self.keys.items[self.num_keys - 1].name[0..name.len], name);
+
+        return &self.keys.items[self.num_keys - 1];
     }
 
     pub fn readKeys(self: Hive,in_stream: anytype) !void {
         var i: u32 = 0;
         while(i < self.num_keys) : (i += 1) {
-            self.keys[i] = try Key.read(in_stream);
+            self.keys.append(try Key.read(in_stream));
         }
     }
 
@@ -149,7 +176,7 @@ pub const Hive = struct {
         newHive.checksum = try in_stream.readInt(u8, .big);
         _ = try in_stream.readAll(newHive.name[0..64]);
 
-        if(newHive.magic != 0x69420666) unreachable;
+        if(newHive.magic != 0xB16B00B5) unreachable;
 
         try newHive.readKeys(in_stream);
 
@@ -159,7 +186,7 @@ pub const Hive = struct {
     pub fn writeKeys(self: Hive,out_stream: anytype) !void {
         var i: u32 = 0;
         while(i < self.num_keys) : (i += 1) {
-            try Key.write(out_stream,self.keys[i]);
+            try Key.write(out_stream,self.keys.items[i]);
         }
     }
 
@@ -170,11 +197,11 @@ pub const Hive = struct {
         var out_stream = buf_writer.writer();
 
         var newHive = Hive{
-            .magic = 0x69420666,
+            .magic = 0xB16B00B5,
             .num_keys = 0,
             .checksum = 0,
             .name = std.mem.zeroes([64]u8),
-            .keys = &[_]Key{}
+            .keys = std.ArrayList(Key).init(std.heap.page_allocator)
         };
  
         if(hive_name.len > 64) unreachable;
