@@ -31,5 +31,5 @@ pub fn main() !void {
         opened = try hive.Hive.create(fileName, &msg_buf);
     }
 
-    try cmdline.cmdline(opened);
+    try cmdline.cmdline(&opened);
 }
