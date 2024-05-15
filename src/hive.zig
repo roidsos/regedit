@@ -83,7 +83,7 @@ pub const Key = struct {
 
     pub fn addSubkey(self: *Key,name: []const u8) !*Key {
         self.num_subkeys += 1;
-        self.subkeys.append(Key{
+        try self.subkeys.append(Key{
             .name = std.mem.zeroes([64]u8),
             .num_entries = 0,
             .num_subkeys = 0,
@@ -93,7 +93,7 @@ pub const Key = struct {
         if(name.len > 64) unreachable;
         @memcpy(self.subkeys.items[self.num_subkeys - 1].name[0..name.len], name);
 
-        return &self.subkeys.items[self.num_keys - 1];
+        return &self.subkeys.items[self.num_subkeys - 1];
     }
 
     pub fn iterateSubkeys(self: Key,name: []const u8) HiveErrors!*Key {
