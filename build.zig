@@ -32,6 +32,7 @@ pub fn build(b: *std.Build) void {
     // step is evaluated that depends on it. The next line below will establish
     // such a dependency.
     const run_cmd = b.addRunArtifact(exe);
+    run_cmd.addArg("test.reg");
 
     // By making the run step depend on the install step, it will be run from the
     // installation directory rather than directly from within the cache directory.
