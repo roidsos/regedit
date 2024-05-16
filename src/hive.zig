@@ -98,14 +98,14 @@ pub const Key = struct {
 
     pub fn iterateSubkeys(self: Key,name: []const u8) HiveErrors!*Key {
         for (self.subkeys.items) |*key| {
-            if(std.mem.eql(u8,name,&key.name)) return key;
+            if(std.mem.eql(u8,name,key.name[0..name.len])) return key;
         }
         return HiveErrors.NotFound;
     }
 
     pub fn removeSubkey(self: *Key,name: []const u8) HiveErrors!void {
         for (self.subkeys.items, 0..) |*key, i| {
-            if(std.mem.eql(u8,name,&key.name)) {
+            if(std.mem.eql(u8,name,key.name[0..name.len])) {
                 _ = self.subkeys.orderedRemove(i);
                 self.num_subkeys -= 1;
                 return;
@@ -116,14 +116,14 @@ pub const Key = struct {
 
     pub fn iterateEntries(self: Key,name: []const u8) HiveErrors!*Entry {
         for (self.entries.items) |*entry| {
-            if(std.mem.eql(u8,name,&entry.name)) return entry;
+            if(std.mem.eql(u8,name,entry.name[0..name.len])) return entry;
         }
         return HiveErrors.NotFound;
     }
 
     pub fn removeEntry(self: *Key,name: []const u8) HiveErrors!void {
         for (self.entries.items, 0..) |*entry, i| {
-            if(std.mem.eql(u8,name,&entry.name)) {
+            if(std.mem.eql(u8,name,entry.name[0..name.len])) {
                 _ = self.entries.orderedRemove(i);
                 self.num_entries -= 1;
                 return;
@@ -180,14 +180,14 @@ pub const Hive = struct {
 
     pub fn iterateKeys(self: Hive,name: []const u8) HiveErrors!*Key {
         for (self.keys.items) |*key| {
-            if(std.mem.eql(u8,name,&key.name)) return key;
+            if(std.mem.eql(u8,name,key.name[0..name.len])) return key;
         }
         return HiveErrors.NotFound;
     }
 
     pub fn removeKey(self: *Hive,name: []const u8) HiveErrors!void {
         for (self.keys.items, 0..) |*key, i| {
-            if(std.mem.eql(u8,name,&key.name)) {
+            if(std.mem.eql(u8,name,key.name[0..name.len])) {
                 _ = self.keys.orderedRemove(i);
                 self.num_keys -= 1;
                 return;

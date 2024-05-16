@@ -1,7 +1,7 @@
 const std = @import("std");
 const h = @import("hive.zig");
 
-pub fn cmdline(hive: *h.Hive) !void {
+pub fn cmdline(hive: *h.Hive, fname: []const u8) !void {
     const stdout = std.io.getStdOut().writer();
     const stdin = std.io.getStdIn().reader();
 
@@ -25,12 +25,12 @@ pub fn cmdline(hive: *h.Hive) !void {
             if(rWeAtRoot) {
                 for(hive.keys.items) |key|
                 {
-                    try stdout.print("  {s}\n",.{key.name});
+                    try stdout.print(" -{s}\n",.{key.name});
                 }
             }else{
                 for(currkey.subkeys.items) |key|
                 {
-                    try stdout.print("  {s}\n",.{key.name});
+                    try stdout.print(" -{s}\n",.{key.name});
                 }
             }
         }else if(std.mem.eql(u8,msg_buf[0..2],"ck")){
@@ -45,7 +45,7 @@ pub fn cmdline(hive: *h.Hive) !void {
                 };
             }else{
                 toSet = currkey.iterateSubkeys(name.?) catch {
-                    try stdout.print("key not found \"{s}\"\n", .{name.?});
+                    try stdout.print("subkey not found \"{s}\"\n", .{name.?});
                     continue;
                 };
             }
@@ -62,12 +62,12 @@ pub fn cmdline(hive: *h.Hive) !void {
             msg_buf = [_]u8{0} ** 64;
             const name = try stdin.readUntilDelimiterOrEof(&msg_buf, '\n');
             if(rWeAtRoot) {
-                currkey = hive.addKey(name.?) catch {
+                _ = hive.addKey(name.?) catch {
                     try stdout.print("failed to add key \"{s}\"\n", .{name.?});
                     continue;
                 };
             }else{
-                currkey = currkey.addSubkey(name.?) catch {
+                _ = currkey.addSubkey(name.?) catch {
                     try stdout.print("failed to add key \"{s}\"\n", .{name.?});
                     continue;
                 };
@@ -78,7 +78,7 @@ pub fn cmdline(hive: *h.Hive) !void {
             const name = try stdin.readUntilDelimiterOrEof(&msg_buf, '\n');
             if(rWeAtRoot) {
                 hive.removeKey(name.?) catch {
-                    try stdout.print("key not found\n", .{});
+                    try stdout.print("key not found \"{s}\"\n", .{ name.? });
                     continue;
                 };
             }else{
@@ -93,11 +93,12 @@ pub fn cmdline(hive: *h.Hive) !void {
                 continue;
             }
 
-            try stdout.print("entry name: ",.{});
             msg_buf = [1]u8{0} ** 64;
-            const name = try stdin.readUntilDelimiterOrEof(&msg_buf, '\n');
             try stdout.print("entry type(decimal number index 0-12): ",.{});
             const entryType = try std.fmt.parseInt(u8,(try stdin.readUntilDelimiterOrEof(&msg_buf, '\n')).?,10);
+            msg_buf = [1]u8{0} ** 64;
+            try stdout.print("entry name: ",.{});
+            const name = try stdin.readUntilDelimiterOrEof(&msg_buf, '\n');
             if (entryType < 0 or entryType > 12) {
                 try stdout.print("invalid type\n", .{});
                 continue;
@@ -120,6 +121,63 @@ pub fn cmdline(hive: *h.Hive) !void {
                     continue;
                 };
             }
+        }else if(std.mem.eql(u8,msg_buf[0..3],"lse")){
+            if (rWeAtRoot){
+                stdout.print("Root of the hive cannot contain entries!\n", .{}) catch {};
+                continue;
+            }
+            for(currkey.entries.items) |entry| {
+                try stdout.print(" -{s}\n", .{entry.name});
+            }
+        }else if(std.mem.eql(u8,msg_buf[0..5],"chval")){
+            if (rWeAtRoot){
+                stdout.print("Root of the hive cannot contain entries!\n", .{}) catch {};
+                continue;
+            }
+            try stdout.print("What entry? ",.{});
+            msg_buf = [1]u8{0} ** 64;
+            const name = try stdin.readUntilDelimiterOrEof(&msg_buf, '\n');
+
+            var entry = currkey.iterateEntries(name.?) catch {
+                try stdout.print("entry not found \"{s}\"\n", .{name.?});
+                continue;
+            };
+            if(entry.type != @intFromEnum(h.EntryType.SZ)) {
+                //TODO: implement non-string entries
+                try stdout.print("Error: non-string entry, not implemented\n", .{});
+                continue;
+            }
+
+            try stdout.print("new value: ",.{});
+            var val_buf = [1]u8{0} ** 1024;
+            const val = try stdin.readUntilDelimiterOrEof(&val_buf, '\n');
+            entry.length = @intCast(val.?.len);
+            entry.data.clearAndFree();
+            try entry.data.appendSlice(val.?);
+
+        }else if(std.mem.eql(u8,msg_buf[0..6],"getval")){
+            if (rWeAtRoot){
+                stdout.print("Root of the hive cannot contain entries!\n", .{}) catch {};
+                continue;
+            }
+            try stdout.print("What entry? ",.{});
+            msg_buf = [1]u8{0} ** 64;
+            const name = try stdin.readUntilDelimiterOrEof(&msg_buf, '\n');
+            const entry = currkey.iterateEntries(name.?) catch {
+                try stdout.print("entry not found \"{s}\"\n", .{name.?});
+                continue;
+            };
+            if(entry.type != @intFromEnum(h.EntryType.SZ)) {
+                //TODO: implement non-string entries
+                try stdout.print("Error: non-string entry, not implemented\n", .{});
+                continue;
+            }
+            try stdout.print("value: {s}\n", .{entry.data.items});
+        }else if(std.mem.eql(u8,msg_buf[0..1],"w")){
+            hive.write(fname) catch |err| {
+                try stdout.print("failed to write hive: {}\n", .{err});
+                continue;
+            };
         }else{
             try stdout.print("unknown command \"{s}\"\n", .{msg_buf});
         }
