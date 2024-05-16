@@ -103,9 +103,31 @@ pub const Key = struct {
         return HiveErrors.NotFound;
     }
 
+    pub fn removeSubkey(self: *Key,name: []const u8) HiveErrors!void {
+        for (self.subkeys.items, 0..) |*key, i| {
+            if(std.mem.eql(u8,name,&key.name)) {
+                _ = self.subkeys.orderedRemove(i);
+                self.num_subkeys -= 1;
+                return;
+            }
+        }
+        return HiveErrors.NotFound;
+    }
+
     pub fn iterateEntries(self: Key,name: []const u8) HiveErrors!*Entry {
         for (self.entries.items) |*entry| {
             if(std.mem.eql(u8,name,&entry.name)) return entry;
+        }
+        return HiveErrors.NotFound;
+    }
+
+    pub fn removeEntry(self: *Key,name: []const u8) HiveErrors!void {
+        for (self.entries.items, 0..) |*entry, i| {
+            if(std.mem.eql(u8,name,&entry.name)) {
+                _ = self.entries.orderedRemove(i);
+                self.num_entries -= 1;
+                return;
+            }
         }
         return HiveErrors.NotFound;
     }
@@ -159,6 +181,17 @@ pub const Hive = struct {
     pub fn iterateKeys(self: Hive,name: []const u8) HiveErrors!*Key {
         for (self.keys.items) |*key| {
             if(std.mem.eql(u8,name,&key.name)) return key;
+        }
+        return HiveErrors.NotFound;
+    }
+
+    pub fn removeKey(self: *Hive,name: []const u8) HiveErrors!void {
+        for (self.keys.items, 0..) |*key, i| {
+            if(std.mem.eql(u8,name,&key.name)) {
+                _ = self.keys.orderedRemove(i);
+                self.num_keys -= 1;
+                return;
+            }
         }
         return HiveErrors.NotFound;
     }
